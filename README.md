@@ -10,6 +10,15 @@ Also includes **ebuilder agent** support — switch to the ebuilder agent and au
 
 Inspired by the Ralph Loop and Sisyphus features in [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode), reimplemented as a standalone plugin with **zero dependencies**.
 
+## ✅ OpenCode Version Support
+
+| OpenCode version | Status | Notes |
+|---|---|---|
+| V2 `>= 2.0.0` | ✅ Primary | Uses the V2 `{ id, setup }` plugin definition; verified with OpenCode `2.0.29` using the recommended symlink installation below |
+| V1 `>= 1.0.0` | ⚠️ Migration compatibility | Keeps the legacy `server()` entrypoint; new installations should use OpenCode V2 |
+
+The installation and verification commands below target OpenCode V2. After installing or upgrading the plugin, restart the OpenCode background service rather than only reopening the TUI.
+
 ---
 
 ## 🔄 How It Works
@@ -58,47 +67,68 @@ User switches to ebuilder agent in TUI
 
 ---
 
-## 📦 安装
+## 📦 Installation
 
-### 方式一：本地路径安装（推荐，开发用）
+### Option 1: Global source symlink (best practice)
 
-```bash
-cd ~/.cache/opencode
-npm install /path/to/ralph-loop
-```
-
-> 💡 这会创建符号链接，修改源码后无需重新安装，改动实时生效。
-
-### 方式二：GitHub 仓库安装
+This is the installation layout verified with OpenCode `2.0.29`. Keep the Git checkout as the source of truth and expose only `src/index.js` through OpenCode's global single-file plugin directory:
 
 ```bash
-cd ~/.cache/opencode
-npm install FountainChan/opencode-ralph-loop
+git clone https://github.com/VastFuture/opencode-ralph-loop.git \
+  ~/.opencode/plugins/opencode-ralph-loop
+
+cd ~/.opencode/plugins/opencode-ralph-loop
+node tests/test-plugin.mjs
+
+mkdir -p ~/.config/opencode/plugins
+ln -sfn \
+  ~/.opencode/plugins/opencode-ralph-loop/src/index.js \
+  ~/.config/opencode/plugins/ralph-loop.js
+
+opencode service restart
+opencode api get /api/plugin
 ```
 
-### 方式三：直接文件路径（备选）
+The API result must contain:
 
-如果 npm 方式有问题，可直接在 `opencode.json` 的 `plugin` 字段引用 JS 文件路径：
+```text
+id: opencode-ralph-loop
+source.path: ~/.config/opencode/plugins/ralph-loop.js
+state.status: active
+```
+
+Then confirm that `/ralph-loop`, `/ulw-loop`, and `/cancel-ralph` are available. The symlink keeps the installed plugin aligned with the checked-out source without copying files after every update.
+
+> Do not add a root `index.js` under `~/.opencode/plugins/opencode-ralph-loop/` and do not also list this plugin in `opencode.json`. OpenCode scans plugin directories automatically; loading both the checkout and the symlink creates two instances and fails with `Duplicate plugin ID`.
+
+Upgrade the recommended installation with:
+
+```bash
+cd ~/.opencode/plugins/opencode-ralph-loop
+git pull --ff-only
+node tests/test-plugin.mjs
+opencode service restart
+opencode api get /api/plugin
+```
+
+### Option 2: Direct file path
+
+Reference the source file from the V2-native `plugins` field in `opencode.json`:
 
 ```json
 {
-  "plugin": [
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
     "file:///path/to/ralph-loop/src/index.js"
   ]
 }
 ```
 
-### 配置
+Choose exactly one loading method. A local auto-discovered file, a configured path, and an npm package must not be enabled together.
 
-在 `~/.config/opencode/opencode.json` 中添加插件：
+### ebuilder agent configuration
 
-```json
-{
-  "plugin": ["ralph-loop"]
-}
-```
-
-如果需要使用 ebuilder agent（自动续写），额外添加 agent 配置：
+To use the ebuilder agent for automatic continuation, add the agent configuration separately:
 
 ```json
 {
@@ -112,7 +142,7 @@ npm install FountainChan/opencode-ralph-loop
 }
 ```
 
-## 🗂️ 项目结构
+## 🗂️ Project Structure
 
 ```
 opencode-ralph-loop/
@@ -125,25 +155,25 @@ opencode-ralph-loop/
 └── .gitignore
 ```
 
-## 🧹 卸载
+## 🧹 Uninstall
 
-在删除插件前，执行清理脚本以移除残留的命令条目：
+Before deleting the plugin, run the cleanup script to remove generated command entries:
 
 ```bash
-# 1. 预览要清理的内容
+# 1. Preview the cleanup
 python scripts/cleanup.py --source ralph-loop --dry-run
 
-# 2. 执行清理
+# 2. Apply the cleanup
 python scripts/cleanup.py --source ralph-loop
 
-# 3. 卸载 npm 包
-cd ~/.cache/opencode
-npm uninstall ralph-loop
+# 3. Remove the recommended global symlink
+rm ~/.config/opencode/plugins/ralph-loop.js
 
-# 4. 从 opencode.json 的 plugin 数组中移除 "ralph-loop"
+# 4. Restart OpenCode
+opencode service restart
 ```
 
-> 💡 `--dry-run` 可以先预览效果，确认无误后再实际执行。
+If you used a configured-path installation instead, remove that source from `opencode.json`. Use `--dry-run` before cleanup when you want to preview the changes.
 
 ---
 
