@@ -1,5 +1,7 @@
 # 🔁 opencode-ralph-loop
 
+> Compatible with the OpenCode V2 plugin API while retaining the V1 `server()` entrypoint during migration.
+
 **[English](README.md)** · **[简体中文](README_CN.md)**
 
 A lightweight [OpenCode](https://opencode.ai) plugin that implements the [Ralph Loop](https://ghuntley.com/ralph/) pattern — a self-referential completion loop that keeps your AI agent working until a task is truly 100% done.

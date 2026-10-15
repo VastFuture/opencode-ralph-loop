@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PLUGIN_PATH = path.resolve(__dirname, "..", "ralph-loop.js");
+const PLUGIN_PATH = path.resolve(__dirname, "..", "src", "index.js");
 const SANDBOX_DIR = path.join(__dirname, "sandbox");
 
 const DEFAULT_MAX_ITERATIONS = 100;
@@ -87,7 +87,10 @@ function mockFS() {
 
 async function loadPlugin(ctx) {
   const module = await import(`file:///${PLUGIN_PATH.replace(/\\/g, "/")}?t=${Date.now()}`);
-  return module.default(ctx);
+  assert(module.default.id === "opencode-ralph-loop", "V2 插件 ID 存在");
+  assert(typeof module.default.setup === "function", "V2 setup 入口存在");
+  assert(typeof module.default.server === "function", "V1 server 兼容入口存在");
+  return module.default.server(ctx);
 }
 
 // ─── 测试用例 ───

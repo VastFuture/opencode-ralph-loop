@@ -219,7 +219,7 @@ async function showToast(client, title, message, variant, duration) {
   } catch {}
 }
 
-export default async function ralphLoopPlugin({ client, directory }) {
+async function createServerHooks({ client, directory }) {
   const inFlight = new Set();
 
   // ── Sync commands to opencode.json for Desktop UI autocomplete ──
@@ -329,6 +329,100 @@ export default async function ralphLoopPlugin({ client, directory }) {
     },
   };
 }
+
+function toLegacyMessage(message) {
+  if (message?.info) return message;
+  return {
+    info: {
+      id: message?.id,
+      role: message?.type,
+      agent: message?.agent,
+      error: message?.error,
+    },
+    parts: message?.type === "assistant"
+      ? (message.content || [])
+      : [{ type: "text", text: message?.text || "" }],
+  };
+}
+
+function createV2Client(ctx) {
+  return {
+    session: {
+      messages: async ({ path }) => ({
+        data: (await ctx.session.context({ sessionID: path.id })).map(toLegacyMessage),
+      }),
+      promptAsync: async ({ path, body }) => {
+        const text = (body.parts || [])
+          .filter((part) => part.type === "text")
+          .map((part) => part.text)
+          .join("\n");
+        await ctx.session.prompt({ sessionID: path.id, text, delivery: "queue" });
+      },
+    },
+    tui: {
+      showToast: async () => {},
+    },
+  };
+}
+
+async function setupV2(ctx) {
+  const hooks = await createServerHooks({
+    client: createV2Client(ctx),
+    directory: ctx.location.directory,
+  });
+
+  await ctx.command.transform((editor) => {
+    for (const [name, definition] of Object.entries(getCommands())) {
+      editor.add({
+        name,
+        description: definition.description,
+        async execute(input) {
+          await hooks["chat.message"](
+            { sessionID: input.sessionID },
+            { parts: [{ type: "text", text: `/${name} ${input.prompt.text || ""}` }] },
+          );
+          if (name !== "cancel-ralph" && input.prompt.text?.trim()) {
+            await ctx.session.prompt({
+              sessionID: input.sessionID,
+              ...input.prompt,
+            });
+          }
+        },
+      });
+    }
+  });
+
+  await ctx.session.hook("prompt", async (event) => {
+    const session = await ctx.session.get({ sessionID: event.sessionID }).catch(() => undefined);
+    await hooks["chat.message"](
+      {
+        sessionID: event.sessionID,
+        agent: session?.agent,
+        parts: [{ type: "text", text: event.prompt.text || "" }],
+      },
+      {},
+    );
+  });
+
+  const controller = new AbortController();
+  void (async () => {
+    try {
+      for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+        await hooks.event({ event: { type: event.type, properties: event.data } });
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) console.error("[ralph-loop] event subscription failed:", error);
+    }
+  })();
+
+  return () => controller.abort();
+}
+
+export default {
+  id: "opencode-ralph-loop",
+  setup: setupV2,
+  server: createServerHooks,
+};
 
 async function handleContinuation(client, directory, sessionID, state, stateFile, isEbuilder) {
   if (state.session_id && state.session_id !== sessionID) return;

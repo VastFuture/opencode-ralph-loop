@@ -3,16 +3,22 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Self-referential development loop for OpenCode — auto-continuation until completion promise",
-  "main": "src/index.js",
+  "main": "index.js",
   "exports": {
     ".": {
-      "import": "./src/index.js",
-      "require": "./src/index.js",
-      "default": "./src/index.js"
+      "import": "./index.js",
+      "require": "./index.js",
+      "default": "./index.js"
     }
   },
   "peerDependencies": {
+    "@opencode/plugin": ">=2.0.0",
     "@opencode-ai/plugin": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@opencode-ai/plugin": {
+      "optional": true
+    }
   },
   "keywords": ["opencode", "plugin", "ralph-loop", "automation", "loop"],
   "license": "MIT"
